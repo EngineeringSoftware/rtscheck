@@ -1,0 +1,46 @@
+#!/bin/bash
+
+mode=${1:-"demo"}
+
+readonly VERION=1.2
+
+printf "AutoEP Components ${VERION}\n"
+
+printf "Checking for required software ..."
+if [[ ! -f "jdolly.tar.gz" ]]; then
+    printf "jdolly not found!"
+    exit 1
+else
+        tar -xf jdolly.tar.gz &> /dev/null
+        (
+                cd jdolly
+                mvn package -DskipTests &> /dev/null
+        )
+fi
+
+if [[ ! -d "libs" ]]; then
+    printf "libs not found!"
+    exit 1
+fi
+
+if [[ ! -d "rtstest-agent" ]]; then
+    printf "rtstest-agent not found!"
+    exit 1
+else
+        (
+                cd rtstest-agent
+                mvn install -DskipTests &> /dev/null
+        )
+fi
+
+printf "Running RTSCheck (AutoEP) for all tools on all (demo) examples ...\n"
+if [[ ${mode} == "all" ]]; then
+        python3 run_autoep.py --gen-programs
+        python3 run_autoep.py --run
+else
+        printf "Demo configuration: JD1 + E7. There are 36 evolved programs in total \n"
+        python3 run_autoep.py --gen-programs-for-one-config default,increase-constants
+        python3 run_autoep.py --run
+fi
+python3 gen_tables.py --all
+python3 check_rules.py --all

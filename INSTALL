@@ -1,0 +1,11 @@
+# Need Docker version at least 17.09
+docker build -t rtscheck .
+
+docker run -i -v `pwd`:/Scratch -t rtscheck
+
+cd /home/rtscheck
+
+# will start as user rtscheck in /home/rtscheck
+# if need to run something using sudo, password is "docker" (no quotes)
+
+# follow the instructions in README file to run the framework

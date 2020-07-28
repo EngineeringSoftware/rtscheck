@@ -1,0 +1,993 @@
+#!/usr/bin/python3
+
+import os
+import sys
+import time
+import subprocess as sub
+import re
+import shutil
+import argparse
+import datetime
+import collections
+import distutils.core
+
+### Requires:
+### 1. Install JDolly in the same dir as this script.
+### 2. Install Randoop in the same dir as this script.
+### 3. Have rtstest-agent in the same dir as this script, and use mvn install to create the jar
+
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__)) # Dir of this script
+JDOLLY_DIR = SCRIPT_DIR + '/jdolly'
+LIBS_DIR = SCRIPT_DIR + '/libs'
+_DOWNLOADS_DIR = SCRIPT_DIR + '/_downloads'
+_RESULTS_DIR = SCRIPT_DIR + '/_results'
+POM_PATH = SCRIPT_DIR + '/configs/pom.xml'
+AGENT_PATH = SCRIPT_DIR + '/rtstest-agent/target/rtstest-agent-5.1.0.jar'
+GEN_PROGRAMS_DIR = SCRIPT_DIR + '/generated_programs'
+
+TOOLS = ['notool', 'clover', 'ekstazi', 'starts']
+
+GENERATION_CONSTRAINTS = ['default', 'pullupmethod', 'pushdownmethod', 'movemethod', \
+                          'encapsulatefield', 'addparameter', 'pullupfield', 'renameclass', \
+                          'renamefield', 'renamemethod']
+EVOLUTIONS = ['increase-constants', 'remove-extends', 'add-extends', 'next-program-in-order', \
+              'remove-method', 'copy-method', 'copy-method-and-replace', 'copy-field', \
+              'copy-field-and-replace']
+
+def parseArgs(argv):
+    '''
+    Parse the args of the script.
+    '''
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--gen-programs', \
+                        help='Generate evolved programs for all the configurations', \
+                        action='store_true', required=False)
+    parser.add_argument('--gen-programs-for-one-config', \
+                        help='Generate evolved programs for one configuration: [gen],[evo]', \
+                        required=False)
+    parser.add_argument('--run', help='Run All the RTS tools on all the generated programs', \
+                        action='store_true', required=False)
+    if (len(argv) == 0):
+        parser.print_help()
+        exit(1)
+    opts = parser.parse_args(argv)
+    return opts
+
+def genV0ProgramsWithJDolly(config_gen_path, constraints, jdolly_scope=[2,3,3,2], \
+                            max_programs=2525, skip=25, jdolly_dir=JDOLLY_DIR):
+    ''' Generate program using jdolly, output all the generated programs to @config_gen_path
+    default scope: 2,3,3,2; default max-programs: 10000; default skip: 25
+    '''
+    cwd = os.getcwd()
+    if constraints == 'default':
+        constraints_file = JDOLLY_DIR + '/alloyTheory/default.als'
+        jdolly_scope = [2,3,3,2]
+    elif constraints == 'pullupmethod':
+        constraints_file = JDOLLY_DIR + '/alloyTheory/pullupmethod_final.als'
+        jdolly_scope = [2,3,4,0]
+    elif constraints == 'pushdownmethod':
+        constraints_file = JDOLLY_DIR + '/alloyTheory/pushdownmethod_final.als'
+        jdolly_scope = [2,3,4,0]
+    elif constraints == 'movemethod':
+        constraints_file = JDOLLY_DIR + '/alloyTheory/movemethod_final.als'
+        jdolly_scope = [2,3,3,1]
+    elif constraints == 'encapsulatefield':
+        constraints_file = JDOLLY_DIR + '/alloyTheory/encapsulateField_final.als'
+        jdolly_scope = [2,3,3,1]
+    elif constraints == 'addparameter':
+        constraints_file = JDOLLY_DIR + '/alloyTheory/addparameter_final.als'
+        jdolly_scope = [2,3,3,0]
+    elif constraints == 'pullupfield':
+        constraints_file = JDOLLY_DIR + '/alloyTheory/pullupfield_final.als'
+        jdolly_scope = [2,3,1,2]
+    elif constraints == 'renameclass':
+        constraints_file = JDOLLY_DIR + '/alloyTheory/renameclass_final.als'
+        jdolly_scope = [2,3,3,0]
+    elif constraints == 'renamefield':
+        constraints_file = JDOLLY_DIR + '/alloyTheory/renamefield_final.als'
+        jdolly_scope = [2,3,1,2]
+    elif constraints == 'renamemethod':
+        constraints_file = JDOLLY_DIR + '/alloyTheory/renamemethod_final.als'
+        jdolly_scope = [2,3,3,0]
+    max_package = jdolly_scope[0]
+    max_class = jdolly_scope[1]
+    max_method = jdolly_scope[2]
+    max_field = jdolly_scope[3]
+    os.chdir(jdolly_dir)
+    jdolly_cmd = 'java -classpath ' \
+    'lib/org.eclipse.equinox.common_3.2.0.v20060603.jar:' \
+    'lib/ant.jar:' \
+    'lib/ant-launcher.jar:' \
+    'lib/org.eclipse.jdt.core_3.2.3.v_686_R32x.jar:' \
+    'lib/ant-junit.jar:' \
+    'lib/org.eclipse.core.runtime_3.2.0.v20060603.jar:' \
+    'lib/alloy4.jar:' \
+    'target/jdolly-0.0.1-SNAPSHOT.jar' \
+    ' jdolly.main.Main -scope ' \
+    + str(max_package) + ' ' + str(max_class) +  ' ' + str(max_method) + ' ' + str(max_field) \
+    + ' -maxprograms ' + str(max_programs) \
+    + ' -output ' + config_gen_path + '/program' \
+    + ' -skip ' + str(skip) \
+    + ' -addconstraints ' + constraints_file
+    # print (jdolly_cmd)
+    sub.run(jdolly_cmd, shell=True, stdout=open(os.devnull, 'w'))
+    os.chdir(cwd)
+
+def postProcessAllToPublic(config_gen_path):
+    ''' For each src file generated by jdolly, change all access modifiers to public
+    '''
+    pattern = re.compile('^\\s*(long|int)')
+    for dir_path,subpaths,files in os.walk(config_gen_path, False):
+        for f in files:
+            if f.endswith('.java'):
+                fr = open(os.path.join(dir_path, f), 'r')
+                lines = fr.readlines()
+                fr.close()
+                for i in range(len(lines)):
+                    lines[i] = lines[i].replace('protected', 'public') \
+                                       .replace('private', 'public')
+                    if re.search(pattern, lines[i]):
+                        object_str = re.search(pattern, lines[i]).group(0) \
+                                            .replace('long', 'public long') \
+                                            .replace('int', 'public int')
+                        lines[i] = re.sub(pattern, object_str, lines[i])
+                fw = open(os.path.join(dir_path, f), 'w')
+                fw.write("".join(lines))
+                fw.close()
+
+def changeAllAutoExampleDirsToMavenProject(root_list, pom_path=POM_PATH):
+    ''' Change directories to maven project structure
+    '''
+    for root in root_list:
+        old_path = os.path.join(root, 'in')
+        src_path = os.path.join(root, 'src')
+        main_java_path = os.path.join(src_path, 'main/java')
+        test_java_path = os.path.join(src_path, 'test/java')
+        os.makedirs(main_java_path)
+        os.makedirs(test_java_path)
+        for package in os.listdir(old_path):
+            new_main_package_path = os.path.join(main_java_path, package)
+            new_test_package_path = os.path.join(test_java_path, package)
+            os.makedirs(new_main_package_path)
+            os.makedirs(new_test_package_path)
+            old_package_path = os.path.join(old_path, package)
+            for f in os.listdir(old_package_path):
+                if f.startswith('ClassId') and f.endswith('.java'):
+                    shutil.copy(os.path.join(old_package_path, f), new_main_package_path)
+        shutil.copyfile(pom_path, os.path.join(root, 'pom.xml'))
+        shutil.rmtree(old_path)
+        version_0_path = os.path.join(root, '0')
+        os.makedirs(version_0_path)
+        for item in os.listdir(root):
+            if not os.path.join(root, item) == version_0_path:
+                shutil.move(os.path.join(root, item), version_0_path)
+        fw = open(root + '/RESULT', 'w')
+        fw.write('0\n')
+        fw.close()
+
+def compileAllPrograms(root_list):
+    ''' Compile all the programs generated by jdolly, return the list of all the compilable 
+    programs.
+    '''            
+    valid_root_list = []
+    cwd = os.getcwd()
+    for root in root_list:
+        os.chdir(root + '/0')
+        # Log compilation at the same time
+        sp = sub.run('mvn compile', shell=True, stdout=open(os.devnull, 'w'), stderr=sub.STDOUT)
+        if sp.returncode == 0:
+            os.chdir(cwd)
+            valid_root_list.append(root)
+        else:
+            # Delete invalid programs
+            os.chdir(cwd)
+            shutil.rmtree(root)
+            #pass
+    return valid_root_list
+
+def genTestsWithRandoop(valid_root_list, test_method_max_size, test_method_num_limit=50, \
+                        remove_test_suite=True, libs_dir=LIBS_DIR):
+    ''' Generate tests using randoop, output into the same directory as src files
+    '''
+    # Generate classlist.txt for randoop
+    for root in valid_root_list:
+        fw = open(root + '/0/classlist.txt', 'w')
+        for dir_path, subpaths, files in os.walk(root + '/0', False):
+            for f in files:
+                if f.startswith('ClassId') and f.endswith('.java'):
+                    package_name = dir_path.split('/')[-1]
+                    class_name = f.replace('.java', '')
+                    fw.write(package_name + '.' + class_name + '\n')
+        fw.close()
+    # Run randoop
+    randoop_jar = LIBS_DIR + '/randoop-all-3.1.5.jar'
+    junit_jar = LIBS_DIR + '/junit-4.12.jar'
+    hamcrest_jar = LIBS_DIR + '/hamcrest-core-1.3.jar'
+    for root in valid_root_list:
+        program_id = root.split('/')[-3]
+        class_list_path = root + '/0/classlist.txt'
+        package_name = 'Package_0'
+        output_dir = root + '/0/src/test/java'
+        randoop_cmd = 'java -ea -classpath ' \
+                      + randoop_jar + ':' \
+                      + junit_jar + ':' \
+                      + hamcrest_jar + ':' \
+                      + root + '/0/target/classes' + ' randoop.main.Main gentests' \
+                      + ' --classlist=' + class_list_path \
+                      + ' --junit-package-name=' + package_name \
+                      + ' --outputlimit=' + str(test_method_num_limit) \
+                      + ' --timelimit=10' \
+                      + ' --maxsize=' + str(test_method_max_size) \
+                      + ' --junit-output-dir=' + output_dir \
+                      + ' --regression-test-basename=TestGroup' \
+                      + str(test_method_max_size) + 'Case' \
+                      + ' --testsperfile=1'
+        sub.run(randoop_cmd, shell=True, stdout=open(os.devnull, 'w'), stderr=sub.STDOUT)
+        if remove_test_suite:
+            removeTestSuite(root)
+    return
+
+def removeTestSuite(root):
+    tests_dir = root + '/0/src/test/java/Package_0'
+    for f in os.listdir(tests_dir):
+        if f == 'TestRegression.java':
+            os.remove(tests_dir + '/' + f)
+        elif f.endswith('Case.java'):
+            os.remove(tests_dir + '/' + f)
+
+def convertTestAssertionsToPrintings(valid_root_list):
+    ''' Convert test assertions to printings
+    '''
+    for root in valid_root_list:
+        tests_dir = root + '/0/src/test/java/Package_0'
+        for test in os.listdir(tests_dir):
+            fr = open(tests_dir + '/' + test, 'r')
+            lines = fr.readlines()
+            fr.close()
+            for i in range(len(lines)):
+                if lines[i].strip().startswith('org.junit.Assert.assertTrue'):
+                    lines.append('//' + lines[i])
+                    left = lines[i].split('(')[1].split(' ')[0]
+                    right = lines[i].split(')')[0].split(' ')[-1]
+                    lines[i]='        System.out.println(\"Assert: ' + left + ' == ' + \
+                                      right + '\" + \" \" + ' + left + ' + \" \" + ' + \
+                                      right + ');\n'
+                elif lines[i].strip().startswith('org.junit.Assert.assertNull'):
+                    lines.append('//' + lines[i])
+                    var = lines[i].split('(')[1].split(')')[0]
+                    lines[i]='        System.out.println(\"Assert: null\" + \" \" + ' \
+                               + var + ');\n'
+                elif lines[i].strip().startswith('org.junit.Assert.assertNotNull'):
+                    lines.append('//' + lines[i])
+                    var = lines[i].split('(')[1].split(')')[0]
+                    lines[i]='        System.out.println(\"Assert: not null\" + \" \" + ' \
+                               + var + ');\n'
+            fw = open(tests_dir + '/' + test, 'w')
+            fw.write(''.join(lines))
+            fw.close()
+
+def insertLoadingAgentinTests(valid_root_list):
+    ''' Insert code for loading the state-collecting agent in the tests
+    '''
+    for root in valid_root_list:
+        tests_dir = root + '/0/src/test/java/Package_0'
+        for test in os.listdir(tests_dir):
+            fr = open(tests_dir + '/' + test, 'r')
+            lines = fr.readlines()
+            fr.close()
+            for i in range(len(lines)):
+                if lines[i].strip().startswith('public class Test'):
+                    newlines = []
+                    newlines.append('    @org.junit.After\n')
+                    newlines.append('    public void after() { try { Class.forName("org.rtstest.maven.Monitor").getDeclaredMethod("printAndClean").invoke(null); } catch (Exception ex) { ex.printStackTrace(); } }\n')
+                    lines[i+1 : i+1] = newlines
+            fw = open(tests_dir + '/' + test, 'w')
+            fw.write(''.join(lines))
+            fw.close()
+
+def cleanAutoGenMvenProjects(valid_root_list):
+    ''' Clean the generated maven project dirs (some target files due to the compilation)
+    '''
+    cwd = os.getcwd()
+    for root in valid_root_list:
+        os.chdir(root + '/0')
+        sub.run('mvn clean', shell=True, stdout=open(os.devnull, 'w'), \
+                stderr=open(os.devnull, 'w'))
+    os.chdir(cwd)
+
+def genEvolvedPrograms(valid_root_list, evolution):
+    ''' Generate evolved programs.
+    '''
+    for root in valid_root_list:
+        version_0_path = root + '/0'
+        if evolution == 'increase-constants':
+            evolveIncreasingConstantsByOne(version_0_path)
+        elif evolution == 'remove-extends':
+            evolveRemovingExtends(version_0_path)
+        elif evolution == 'add-extends':
+            evolveAddingExtends(version_0_path)
+        elif evolution == 'next-program-in-order':
+            evolveToNextProgramInNumberOrder(version_0_path)
+        elif evolution == 'remove-method':
+            evolveRemovingMethod(version_0_path)
+        elif evolution == 'copy-method':
+            evolveCopyingMethod(version_0_path)
+        elif evolution == 'copy-method-and-replace':
+            evolveCopyingMethodAndReplaceConstants(version_0_path)
+        elif evolution == 'copy-field':
+            evolveCopyingField(version_0_path)
+        elif evolution == 'copy-field-and-replace':
+            evolveCopyingFieldAndReplace(version_0_path)
+    # Filter out invalid programs from the list
+    filtered_valid_root_list = []
+    for root in valid_root_list:
+        if os.path.isdir(root):
+            filtered_valid_root_list.append(root)
+    return filtered_valid_root_list
+
+def evolveIncreasingConstantsByOne(version_0_path):
+    ''' Evolution: increase constant by 1.
+    '''
+    root = '/'.join(version_0_path.split('/')[:-1])
+    pattern1 = re.compile("return [0-9]+;")
+    pattern2 = re.compile("return .*\([0-9]+\);")
+    pattern3 = re.compile("public.*=[0-9]+;")
+    places_dict = {}
+    # Record the positions of all the lines that have constants.
+    places_dict = {}
+    for dir_path, subpaths, files in os.walk(version_0_path + '/src/main/java'):
+        for f in files:
+            f = dir_path + '/' + f
+            places_dict[f] = []
+            fr = open(f, 'r')
+            lines = fr.readlines()
+            fr.close()
+            for i in range(len(lines)):
+                if pattern1.search(lines[i]) or pattern2.search(lines[i]) or \
+                   pattern3.search(lines[i]):
+                    places_dict[f].append(i)
+    # Increase one constant at a time, generate new versions.
+    version_id = 0
+    for f in places_dict:
+        for i in places_dict[f]:
+            version_id += 1
+            shutil.copytree(version_0_path, root + '/' + str(version_id))
+            fnew = f.replace(version_0_path, root + '/' + str(version_id))
+            fr = open(fnew, 'r')
+            lines = fr.readlines()
+            fr.close()
+            if pattern1.match(lines[i].strip()):
+                constant = int(lines[i].split()[1].replace(';', ''))
+                updated_constant = constant + 1
+                lines[i] = lines[i].replace(str(constant), str(updated_constant))
+            elif pattern2.match(lines[i].strip()):
+                constant = int(lines[i].split(')')[-2].split('(')[-1])
+                updated_constant = constant + 1
+                lines[i] = lines[i].replace('(' + str(constant) + ')', \
+                                            '(' + str(updated_constant) + ')')
+            elif pattern3.match(lines[i].strip()):
+                constant = int(lines[i].split('=')[1].split(';')[0])
+                updated_constant = constant + 1
+                lines[i] = lines[i].replace('=' + str(constant) + ';', \
+                                            '=' + str(updated_constant) + ';')
+            fw = open(fnew, 'w')
+            fw.write(''.join(lines))
+            fw.close()
+    if version_id == 0:
+        shutil.rmtree(root)
+
+def evolveRemovingExtends(version_0_path):
+    ''' Evolution: Remove extends, for each removing, generate a new version.
+    '''
+    root = '/'.join(version_0_path.split('/')[:-1])
+    extends_dict = {}
+    # Record the positions of all extends.
+    for dir_path, subpaths, files in os.walk(version_0_path + '/src/main/java'):
+        for f in files:
+            f = dir_path + '/' + f
+            extends_dict[f] = []
+            fr = open(f, 'r')
+            lines = fr.readlines()
+            fr.close()
+            for i in range(len(lines)):
+                if ' extends ' in lines[i]:
+                    extends_dict[f].append(i)
+    # Generate versions
+    version_id = 0
+    for f in extends_dict:
+        for i in extends_dict[f]:
+            version_id += 1
+            shutil.copytree(version_0_path, root + '/' + str(version_id))
+            fnew = f.replace(version_0_path, root + '/' + str(version_id))
+            fr = open(fnew, 'r')
+            lines = fr.readlines()
+            fr.close()
+            fw = open(fnew, 'w')
+            pattern = re.compile(' extends \S+ {')
+            lines[i] = re.sub(pattern, ' {', lines[i])
+            fw.write(''.join(lines))
+            fw.close()
+    if version_id == 0:
+        shutil.rmtree(root)
+
+def evolveAddingExtends(version_0_path):
+    ''' Evolution: Add extends, for each adding, generate a new version.
+    '''
+    root = '/'.join(version_0_path.split('/')[:-1])
+    places_dict = {}
+    # Record the positions of all inserting points.
+    pattern = re.compile('public class ClassId_[0-9]+ {')
+    places_dict = {}
+    for dir_path, subpaths, files in os.walk(version_0_path + '/src/main/java'):
+        for f in files:
+            f = dir_path + '/' + f
+            places_dict[f] = []
+            fr = open(f, 'r')
+            lines = fr.readlines()
+            fr.close()
+            for i in range(len(lines)):
+                if pattern.match(lines[i]):
+                    places_dict[f].append(i)
+    # Get class list
+    class_list = []
+    flist = open(version_0_path + '/classlist.txt', 'r')
+    for c in flist.readlines():
+        c = c.strip().split('.')[1]
+        class_list.append(c)
+    # Add extends, generate new versions
+    root = '/'.join(version_0_path.split('/')[:-1])
+    version_id = 0
+    for f in places_dict:
+        for i in places_dict[f]:
+            for c in class_list:
+                version_id += 1
+                shutil.copytree(version_0_path, root + '/' + str(version_id))
+                fnew = f.replace(version_0_path, root + '/' + str(version_id))
+                fr = open(fnew, 'r')
+                lines = fr.readlines()
+                fr.close()
+                fw = open(fnew, 'w')
+                pattern = re.compile('public class ClassId_[0-9]+ {')
+                object_str = re.search(pattern, lines[i]).group(0) \
+                                                         .replace(' {', ' extends ' + c + ' {')
+                lines[i] = re.sub(pattern, object_str, lines[i])
+                fw.write(''.join(lines))
+                fw.close()
+    if version_id == 0:
+        shutil.rmtree(root)
+
+def evolveToNextProgramInNumberOrder(version_0_path):
+    ''' Evolution: Evolve to the next generated program (simulate random evolution)
+    '''
+    root = version_0_path.split('/')[-2]
+    root_list = os.listdir('/'.join(version_0_path.split('/')[:-2]))
+    number_list = sorted([ int(r.replace('test', '')) for r in root_list])
+    next_number_index = number_list.index(int(root.replace('test', ''))) + 1
+    if next_number_index == len(number_list):
+        next_number_index = 0
+    next_number = number_list[next_number_index]
+    #print (root, next_number)
+    version_1_path = '/'.join(version_0_path.split('/')[:-1]) + '/1'
+    shutil.copytree(version_0_path, version_1_path)
+    shutil.rmtree(version_1_path + '/src/main')
+    shutil.copytree('/'.join(version_0_path.split('/')[:-2]) \
+                    + '/test' + str(next_number) + '/0/src/main', \
+                    '/'.join(version_0_path.split('/')[:-1]) + '/1/src/main')
+
+def evolveRemovingMethod(version_0_path):
+    ''' Evolution: Remove a method
+    '''
+    root = '/'.join(version_0_path.split('/')[:-1])
+    places_dict = {}
+    # Record the positions of all the method signature lines.
+    pattern = re.compile('\){\n')
+    places_dict = {}
+    for dir_path, subpaths, files in os.walk(version_0_path + '/src/main/java'):
+        for f in files:
+            f = dir_path + '/' + f
+            places_dict[f] = []
+            fr = open(f, 'r')
+            lines = fr.readlines()
+            fr.close()
+            for i in range(len(lines)):
+                if pattern.search(lines[i]):
+                    places_dict[f].append(i)
+    # Remove one method definition at a time, generate new versions.
+    version_id = 0
+    for f in places_dict:
+        for i in places_dict[f]:
+            version_id += 1
+            shutil.copytree(version_0_path, root + '/' + str(version_id))
+            fnew = f.replace(version_0_path, root + '/' + str(version_id))
+            fr = open(fnew, 'r')
+            lines = fr.readlines()
+            fr.close()
+            fw = open(fnew, 'w')
+            for j in range(i, len(lines)):
+                if lines[j].strip() == '}':
+                    lines[j] = ''
+                    break
+                lines[j] = ''
+            fw.write(''.join(lines))
+            fw.close()
+    if version_id == 0:
+        shutil.rmtree(root)
+
+def evolveCopyingMethod(version_0_path):
+    ''' Evolution: Copy a method to another class
+    '''
+    root = '/'.join(version_0_path.split('/')[:-1])
+    places_dict = {}
+    file_list = []
+    # Record the positions of all the method signature lines.
+    pattern = re.compile('\){\n')
+    class_def_pattern = re.compile('public class ClassId_[0-9]+( extends ClassId_[0-9]+)? {')
+    places_dict = {}
+    for dir_path, subpaths, files in os.walk(version_0_path + '/src/main/java'):
+        for f in files:
+            f = dir_path + '/' + f
+            places_dict[f] = []
+            file_list.append(f)
+            fr = open(f, 'r')
+            lines = fr.readlines()
+            fr.close()
+            for i in range(len(lines)):
+                if pattern.search(lines[i]):
+                    places_dict[f].append(i)
+    # Copy one method at a time, generate new versions.
+    version_id = 0
+    for f in places_dict:
+        for i in places_dict[f]:
+            for fdest in file_list:
+                if fdest == f:
+                    continue
+                version_id += 1
+                shutil.copytree(version_0_path, root + '/' + str(version_id))
+                fr = open(f, 'r')
+                lines = fr.readlines()
+                fr.close()
+                for j in range(i, len(lines)):
+                    if lines[j].strip() == '}':
+                        break
+                fdest = fdest.replace(version_0_path, root + '/' + str(version_id))
+                frdest = open(fdest, 'r')
+                destlines = frdest.readlines()
+                frdest.close()
+                for k in range(len(destlines)):
+                    if class_def_pattern.search(destlines[k].strip()):
+                        break
+                destlines[k+1 : k+1] = lines[i : j+1]
+                fwdest = open(fdest, 'w')
+                fwdest.write(''.join(destlines))
+                fwdest.close()
+    if version_id == 0:
+        shutil.rmtree(root)
+
+def evolveCopyingMethodAndReplaceConstants(version_0_path):
+    ''' Evolution: Copy a method to another class and replace its constant
+    '''
+    root = '/'.join(version_0_path.split('/')[:-1])
+    places_dict = {}
+    file_list = []
+    # Record the positions of all the method signature lines.
+    pattern = re.compile('\){\n')
+    class_def_pattern = re.compile('public class ClassId_[0-9]+( extends ClassId_[0-9]+)? {')
+    places_dict = {}
+    for dir_path, subpaths, files in os.walk(version_0_path + '/src/main/java'):
+        for f in files:
+            f = dir_path + '/' + f
+            places_dict[f] = []
+            file_list.append(f)
+            fr = open(f, 'r')
+            lines = fr.readlines()
+            fr.close()
+            for i in range(len(lines)):
+                if pattern.search(lines[i]):
+                    places_dict[f].append(i)
+    # Copy and replace one method at a time, generate new versions.
+    constant_pattern1 = re.compile("return [0-9]+;")
+    constant_pattern2 = re.compile("return .*\([0-9]+\);")
+    version_id = 0
+    for f in places_dict:
+        for i in places_dict[f]:
+            for fdest in file_list:
+                if fdest == f:
+                    continue
+                version_id += 1
+                shutil.copytree(version_0_path, root + '/' + str(version_id))
+                fr = open(f, 'r')
+                lines = fr.readlines()
+                fr.close()
+                for j in range(i, len(lines)):
+                    if lines[j].strip() == '}':
+                        break
+                fdest = fdest.replace(version_0_path, root + '/' + str(version_id))
+                frdest = open(fdest, 'r')
+                destlines = frdest.readlines()
+                frdest.close()
+                for k in range(len(destlines)):
+                    if class_def_pattern.search(destlines[k].strip()):
+                        break
+                # Replace constants
+                for l in range(i, j+1):
+                    if constant_pattern1.match(lines[l].strip()):
+                        constant = int(lines[l].split()[1].replace(';', ''))
+                        updated_constant = constant + 1
+                        lines[l] = lines[l].replace(str(constant), str(updated_constant))
+                    elif constant_pattern2.match(lines[l].strip()):
+                        constant = int(lines[l].split(')')[-2].split('(')[-1])
+                        updated_constant = constant + 1
+                        lines[l] = lines[l].replace('(' + str(constant) + ')', \
+                                                    '(' + str(updated_constant) + ')')
+                destlines[k+1 : k+1] = lines[i : j+1]
+                fwdest = open(fdest, 'w')
+                fwdest.write(''.join(destlines))
+                fwdest.close()
+    if version_id == 0:
+        shutil.rmtree(root)
+
+def evolveCopyingField(version_0_path):
+    ''' Evolution: Copy a field to another class
+    '''
+    root = '/'.join(version_0_path.split('/')[:-1])
+    places_dict = {}
+    file_list = []
+    # Record the positions of all the field lines.
+    pattern = re.compile("public.*=.+;")
+    places_dict = {}
+    for dir_path, subpaths, files in os.walk(version_0_path + '/src/main/java'):
+        for f in files:
+            f = dir_path + '/' + f
+            places_dict[f] = []
+            file_list.append(f)
+            fr = open(f, 'r')
+            lines = fr.readlines()
+            fr.close()
+            for i in range(len(lines)):
+                if pattern.search(lines[i].strip()):
+                    places_dict[f].append(i)
+    # Copy one field at a time, generate new versions.
+    class_def_pattern = re.compile('public class ClassId_[0-9]+( extends ClassId_[0-9]+)? {')
+    version_id = 0
+    for f in places_dict:
+        for i in places_dict[f]:
+            for fdest in file_list:
+                if fdest == f:
+                    continue
+                version_id += 1
+                shutil.copytree(version_0_path, root + '/' + str(version_id))
+                fr = open(f, 'r')
+                lines = fr.readlines()
+                fr.close()
+                fdest = fdest.replace(version_0_path, root + '/' + str(version_id))
+                frdest = open(fdest, 'r')
+                destlines = frdest.readlines()
+                frdest.close()
+                for k in range(len(destlines)):
+                    if class_def_pattern.search(destlines[k].strip()):
+                        break
+                destlines[k+1 : k+1] = lines[i]
+                fwdest = open(fdest, 'w')
+                fwdest.write(''.join(destlines))
+                fwdest.close()
+    if version_id == 0:
+        shutil.rmtree(root)
+
+def evolveCopyingFieldAndReplace(version_0_path):
+    ''' Evolution: Copy a field to another class and change its value
+    '''
+    root = '/'.join(version_0_path.split('/')[:-1])
+    places_dict = {}
+    file_list = []
+    # Record the positions of all the field lines that have constants.
+    pattern = re.compile("public.*=[0-9]+;")
+    places_dict = {}
+    for dir_path, subpaths, files in os.walk(version_0_path + '/src/main/java'):
+        for f in files:
+            f = dir_path + '/' + f
+            places_dict[f] = []
+            file_list.append(f)
+            fr = open(f, 'r')
+            lines = fr.readlines()
+            fr.close()
+            for i in range(len(lines)):
+                if pattern.search(lines[i].strip()):
+                    places_dict[f].append(i)
+    # Copy one field at a time, generate new versions.
+    class_def_pattern = re.compile('public class ClassId_[0-9]+( extends ClassId_[0-9]+)? {')
+    version_id = 0
+    for f in places_dict:
+        for i in places_dict[f]:
+            for fdest in file_list:
+                if fdest == f:
+                    continue
+                version_id += 1
+                shutil.copytree(version_0_path, root + '/' + str(version_id))
+                fr = open(f, 'r')
+                lines = fr.readlines()
+                fr.close()
+                # increase the constant
+                constant = int(lines[i].split('=')[1].split(';')[0])
+                updated_constant = constant + 1
+                lines[i] = lines[i].replace('=' + str(constant) + ';', \
+                                            '=' + str(updated_constant) + ';')
+                fdest = fdest.replace(version_0_path, root + '/' + str(version_id))
+                frdest = open(fdest, 'r')
+                destlines = frdest.readlines()
+                frdest.close()
+                for k in range(len(destlines)):
+                    if class_def_pattern.search(destlines[k].strip()):
+                        break
+                destlines[k+1 : k+1] = lines[i]
+                fwdest = open(fdest, 'w')
+                fwdest.write(''.join(destlines))
+                fwdest.close()
+    if version_id == 0:
+        shutil.rmtree(root)
+
+def separateEvolvedPrograms(valid_root_list):
+    if len(valid_root_list) == 0:
+        return valid_root_list
+    cwd = os.getcwd()
+    for root in valid_root_list:
+        parent_dir = '/'.join(root.split('/')[:-1])
+        os.chdir(parent_dir)
+        version_list = os.listdir(root)
+        version_list.remove('RESULT')
+        versions = sorted(version_list, key=lambda v : int(v))
+        for i in range(len(versions)):
+            if i > 1:
+                dest_root = root + '-' + str(i)
+                os.makedirs(dest_root)
+                shutil.copytree(root + '/0', dest_root + '/0')
+                shutil.copytree(root + '/' + str(i), dest_root + '/1')
+                shutil.rmtree(root + '/' + str(i))
+        shutil.move(root, root + '-1')
+    evolved_valid_root_list = []
+    for root in os.listdir(parent_dir):
+        evolved_valid_root_list.append(parent_dir + '/' + root)
+    os.chdir(cwd)
+    return evolved_valid_root_list
+
+def genEvolvingProgramsForOneConfig(gen, evo, jdolly_gen_dir=GEN_PROGRAMS_DIR):
+    gen_start_time = time.time()
+    print ('[AutoEP] ' + gen + '-' + evo + ' started at:' + str(datetime.datetime.now()))
+    # Clean existing directory
+    config_gen_path = jdolly_gen_dir + '/' + gen + '-' + evo
+    if os.path.isdir(config_gen_path):
+        shutil.rmtree(config_gen_path)
+    sub.run('mkdir -p ' + config_gen_path, shell=True)
+    # Generate programs using Jdolly
+    jdolly_start_time = time.time()
+    genV0ProgramsWithJDolly(config_gen_path, constraints=gen)
+    jdolly_end_time = time.time()
+    jdolly_exec_time = jdolly_end_time - jdolly_start_time
+    print('[AutoEP] ' + gen + '-' + evo + ' Jdolly finished at:' + str(datetime.datetime.now()))
+    # Get the list of all the generated programs roots
+    root_set = set()
+    for dir_path,subpaths,files in os.walk(config_gen_path, False):
+        for f in files:
+            root_set.add('/'.join(dir_path.split('/')[:-2]))
+    root_list = sorted(list(root_set))
+    # Post-process all the generated programs, change all the access to public
+    postProcessAllToPublic(config_gen_path)
+    # Change all the directory structures to maven projects
+    changeAllAutoExampleDirsToMavenProject(root_list)
+    # Compile all the generated programs, only keep those can compile
+    compile_start_time = time.time()
+    valid_root_list = compileAllPrograms(root_list)
+    compile_end_time = time.time()
+    compile_exec_time = compile_end_time - compile_start_time
+    print('[AutoEP] ' + gen + '-' + evo + ' compile finished at:' + str(datetime.datetime.now()))
+    # Use Randoop to generate regression tests
+    randoop_start_time = time.time()
+    #for test_method_max_size in [1, 2, 4, 100]: !!!
+    for test_method_max_size in [4]:
+        # limit maxsize and limit test class
+        genTestsWithRandoop(valid_root_list, test_method_max_size)
+    randoop_end_time = time.time()
+    randoop_exec_time = randoop_end_time - randoop_start_time
+    print('[AutoEP] ' + gen + '-' + evo + ' Randoop finished at:' + str(datetime.datetime.now()))
+    # Convert assertions to printings
+    convertTestAssertionsToPrintings(valid_root_list)
+    # Insert loading agent in tests
+    insertLoadingAgentinTests(valid_root_list)
+    # Clean the generated maven directories
+    cleanAutoGenMvenProjects(valid_root_list)
+    # Evolve programs
+    valid_root_list = genEvolvedPrograms(valid_root_list, evo)
+    print('[AutoEP] ' + gen + '-' + evo + ' Evolution finished at:' + str(datetime.datetime.now()))
+    # Put each evolved program in a separate root dir
+    evolved_valid_root_list = separateEvolvedPrograms(valid_root_list)
+    print('[AutoEP] number of evolved programs:' + str(len(evolved_valid_root_list)))
+    print('[AutoEP] ' + gen + '-' + evo + ' the whole program generation finished at:' + \
+          str(datetime.datetime.now()))
+
+def genEvolvingProgramsForAllConfigs(gens=GENERATION_CONSTRAINTS, evos=EVOLUTIONS, \
+                                     genprograms_dir=GEN_PROGRAMS_DIR):
+    if os.path.isdir(gen_programs_dir):
+        shutil.rmtree(gen_programs_dir)
+    sub.run('mkdir -p ' + gen_programs_dir, shell=True)
+    all_gen_start_time = time.time()
+    for gen in gens:
+        for evo in evos:
+            genEvolvingProgramsForOneConfig(gen, evo)
+    all_gen_end_time = time.time()
+    all_gen_exec_time = all_gen_end_time - all_gen_start_time
+
+def prependAndAppendTimeInLogFile(tool, start_time, end_time, log_file):
+    ''' Add time in milliseconds to the beginning and the end of each log file
+    '''
+    print ('[RTSCheck] ' + tool + 'start at ' + str(start_time) + ', end at ' + str(end_time))
+    with open(log_file, 'r') as fr:
+        lines = fr.readlines()
+        fw = open(log_file, 'w')
+        lines.insert(0, str(start_time) + '\n')
+        lines.append(str(end_time) + '\n')
+        fw.write(''.join(lines))
+        fw.close()
+
+def runOneToolOnOneExample(tool, gen, evo, example, gen_programs_dir=GEN_PROGRAMS_DIR,\
+                           downloads_dir=_DOWNLOADS_DIR, results_dir=_RESULTS_DIR, \
+                           agent_path=AGENT_PATH):
+    ''' Run all version of one single example with the RTS tool given as option
+    '''
+    v0_logs_dir = results_dir + '/' + gen + '-' + evo + '/' + example + '/0'
+    v1_logs_dir = results_dir + '/' + gen + '-' + evo + '/' + example + '/1'
+    sub.run('mkdir -p ' + v0_logs_dir, shell=True, stdout=open(os.devnull, 'w'), \
+            stderr=sub.STDOUT)
+    sub.run('mkdir -p ' + v1_logs_dir, shell=True, stdout=open(os.devnull, 'w'), \
+            stderr=sub.STDOUT)
+    # create a copy of program for each tool
+    v0_prog_dir = downloads_dir + '/' + gen + '-' + evo + '/' + example + '-' + \
+                  tool + '/0'
+    if os.path.isdir(v0_prog_dir):
+        shutil.rmtree(v0_prog_dir)
+    shutil.copytree(gen_programs_dir + '/' + gen + '-' + evo + '/program0/' + example + '/0', \
+                    v0_prog_dir)
+    v1_prog_dir = downloads_dir + '/' + gen + '-' + evo + '/' + example + '-' + \
+                  tool + '/1'
+    if os.path.isdir(v1_prog_dir):
+        shutil.rmtree(v1_prog_dir)
+    shutil.copytree(gen_programs_dir + '/' + gen + '-' + evo + '/program0/' + example + '/1', \
+                    v1_prog_dir)
+    if tool == 'notool':
+        # V0 start
+        os.chdir(v0_prog_dir)
+        start_time = int(round(time.time() * 1000))
+        print ('[AutoEP]: Running RetestAll on V0')
+        sub.run('mvn test -fn -DargLine=\"-javaagent:' + agent_path + '\"', shell=True, \
+                stdout=open(v0_logs_dir + '/notool.log', 'w'), stderr=sub.STDOUT)
+        end_time = int(round(time.time() * 1000))
+        prependAndAppendTimeInLogFile(tool, start_time, end_time, \
+                                      v0_logs_dir + '/' + 'notool.log')
+        # V0 end
+        #shutil.move(v0_prog_dir + '/target', v1_prog_dir)
+        # V1 start
+        os.chdir(v0_prog_dir)
+        shutil.rmtree(v0_prog_dir + '/src/main')
+        sub.run('cp -r ' + v1_prog_dir + '/src/main' + ' ' + v0_prog_dir + '/src', shell=True)
+        start_time = int(round(time.time() * 1000))
+        print ('[AutoEP]: Running RetestAll on V1')
+        sub.run('mvn test -fn -DargLine=\"-javaagent:' + agent_path + '\"', shell=True, \
+                stdout=open(v1_logs_dir + '/notool.log', 'w'), stderr=sub.STDOUT)
+        end_time = int(round(time.time() * 1000))
+        prependAndAppendTimeInLogFile(tool, start_time, end_time, \
+                                      v1_logs_dir + '/' + 'notool.log')
+        # V1 end
+    elif tool == 'clover':
+        # V0 start
+        os.chdir(v0_prog_dir)
+        start_time = int(round(time.time() * 1000))
+        print ('[AutoEP]: Running Clover on V0')
+        sub.run('mvn -Pcloverp test -fn -DargLine=\"-javaagent:' + agent_path + '\"', \
+                shell=True, stdout=open(v0_logs_dir + '/clover.log', 'w'), stderr=sub.STDOUT)
+        end_time = int(round(time.time() * 1000))
+        prependAndAppendTimeInLogFile(tool, start_time, end_time, \
+                                      v0_logs_dir + '/' + 'clover.log')
+        # V0 end
+        #shutil.move(v0_prog_dir + '/.clover', v1_prog_dir)
+        #shutil.move(v0_prog_dir + '/target', v1_prog_dir)
+        # V1 start
+        os.chdir(v0_prog_dir)
+        shutil.rmtree(v0_prog_dir + '/src/main')
+        sub.run('cp -r ' + v1_prog_dir + '/src/main' + ' ' + v0_prog_dir + '/src', shell=True)
+        start_time = int(round(time.time() * 1000))
+        print ('[AutoEP]: Running Clover on V1')
+        sub.run('mvn -Pcloverp test -fn -DargLine=\"-javaagent:' + agent_path + '\"', \
+                shell=True, stdout=open(v1_logs_dir + '/clover.log', 'w'), stderr=sub.STDOUT)
+        end_time = int(round(time.time() * 1000))
+        prependAndAppendTimeInLogFile(tool, start_time, end_time, \
+                                      v1_logs_dir + '/' + 'clover.log')
+        # V1 end
+    elif tool == 'ekstazi':
+        # V0 start
+        os.chdir(v0_prog_dir)
+        start_time = int(round(time.time() * 1000))
+        print ('[AutoEP]: Running Ekstazi on V0')
+        sub.run('mvn -Pekstazip test -fn -DargLine=\"-javaagent:' + agent_path + '\"', \
+                shell=True, stdout=open(v0_logs_dir + '/ekstazi.log', 'w'), stderr=sub.STDOUT)
+        end_time = int(round(time.time() * 1000))
+        prependAndAppendTimeInLogFile(tool, start_time, end_time, \
+                                      v0_logs_dir + '/' + 'ekstazi.log')
+        # V0 end
+        #shutil.move(v0_prog_dir + '/.ekstazi', v1_prog_dir)
+        #shutil.move(v0_prog_dir + '/target', v1_prog_dir)
+        # V1 start
+        os.chdir(v0_prog_dir)
+        shutil.rmtree(v0_prog_dir + '/src/main')
+        sub.run('cp -r ' + v1_prog_dir + '/src/main' + ' ' + v0_prog_dir + '/src', shell=True)
+        start_time = int(round(time.time() * 1000))
+        print ('[AutoEP]: Running Ekstazi on V1')
+        sub.run('mvn -Pekstazip test -fn -DargLine=\"-javaagent:' + agent_path + '\"', \
+                shell=True, stdout=open(v1_logs_dir + '/ekstazi.log', 'w'), stderr=sub.STDOUT)
+        end_time = int(round(time.time() * 1000))
+        prependAndAppendTimeInLogFile(tool, start_time, end_time, \
+                                      v1_logs_dir + '/' + 'ekstazi.log')
+        # V1 end
+    elif tool == 'starts':
+        # V0 start
+        os.chdir(v0_prog_dir)
+        start_time = int(round(time.time() * 1000))
+        print ('[AutoEP]: Running STARTS on V0')
+        sub.run('mvn -Pstartsp starts:starts -fn -DargLine=\"-javaagent:' + agent_path + '\"', \
+                shell=True, stdout=open(v0_logs_dir + '/starts.log', 'w'), stderr=sub.STDOUT)
+        end_time = int(round(time.time() * 1000))
+        prependAndAppendTimeInLogFile(tool, start_time, end_time, \
+                                      v0_logs_dir + '/' + 'starts.log')
+        # V0 end
+        #shutil.move(v0_prog_dir + '/.starts', v1_prog_dir)
+        #shutil.move(v0_prog_dir + '/jdeps-cache', v1_prog_dir)
+        #shutil.move(v0_prog_dir + '/target', v1_prog_dir)
+        # V1 start
+        os.chdir(v0_prog_dir)
+        shutil.rmtree(v0_prog_dir + '/src/main')
+        sub.run('cp -r ' + v1_prog_dir + '/src/main' + ' ' + v0_prog_dir + '/src', shell=True)
+        start_time = int(round(time.time() * 1000))
+        print ('[AutoEP]: Running STARTS on V1')
+        sub.run('mvn -Pstartsp starts:starts -fn -DargLine=\"-javaagent:' + agent_path + '\"', \
+                shell=True, stdout=open(v1_logs_dir + '/starts.log', 'w'), stderr=sub.STDOUT)
+        end_time = int(round(time.time() * 1000))
+        prependAndAppendTimeInLogFile(tool, start_time, end_time, \
+                                      v1_logs_dir + '/' + 'starts.log')
+        # V1 end
+
+def runAllToolsOnOneExample(gen, evo, example, tools=TOOLS):
+    for tool in tools:
+        runOneToolOnOneExample(tool, gen, evo, example)
+
+def runAllToolsOnOneConfig(gen, evo, tools=TOOLS, gen_programs_dir=GEN_PROGRAMS_DIR):
+    examples = sorted(os.listdir(gen_programs_dir + '/' + gen + '-' + evo + '/program0'))
+    for example in examples:
+        print ('[RTSCheck] Example: ' + gen + evo + ' ' + example)
+        runAllToolsOnOneExample(gen, evo, example)
+
+def runAllToolsOnAllConfigs(gens=GENERATION_CONSTRAINTS, evos=EVOLUTIONS, \
+                            downloads_dir=_DOWNLOADS_DIR, results_dir=_RESULTS_DIR, \
+                            gen_programs_dir=GEN_PROGRAMS_DIR):
+    if os.path.isdir(downloads_dir):
+        shutil.rmtree(downloads_dir)
+    os.makedirs(downloads_dir)
+    if os.path.isdir(results_dir):
+        shutil.rmtree(results_dir)
+    os.makedirs(results_dir)
+    for gen in gens:
+        for evo in evos:
+            config_dir = gen_programs_dir + '/' + gen + '-' + evo
+            if not os.path.isdir(config_dir):
+                continue
+            runAllToolsOnOneConfig(gen, evo)
+
+if __name__ == '__main__':
+    opts = parseArgs(sys.argv[1:])
+    if opts.gen_programs:
+        genEvolvingProgramsForAllConfigs()
+        exit(0)
+    elif opts.gen_programs_for_one_config:
+        gen = opts.gen_programs_for_one_config.split(',')[0]
+        evo = opts.gen_programs_for_one_config.split(',')[1]
+        genEvolvingProgramsForOneConfig(gen, evo)
+        exit(0)
+    elif opts.run:
+        runAllToolsOnAllConfigs()
+        exit(0)

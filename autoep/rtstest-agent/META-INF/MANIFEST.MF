@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Agent-Class: org.rtstest.maven.RTSTestAgent
+Can-Redefine-Classes: true
+Can-Retransform-Classes: true
+Premain-Class: org.rtstest.maven.RTSTestAgent
+Built-By: Milos Gligoric <milos.gligoric@gmail.com>
