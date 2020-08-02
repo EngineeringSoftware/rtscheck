@@ -1,0 +1,398 @@
+
+GROUP: R1-clover-lang-GR2-fail--1-less
+On lang-42, clover violates R1
+On lang-43, clover violates R1
+On lang-44, clover violates R1
+On lang-45, clover violates R1
+On lang-46, clover violates R1
+On lang-48, clover violates R1
+On lang-49, clover violates R1
+On lang-51, clover violates R1
+On lang-52, clover violates R1
+On lang-53, clover violates R1
+
+GROUP: R1-clover-lang-GR2-fail--2-less
+On lang-47, clover violates R1
+On lang-50, clover violates R1
+
+GROUP: R1-clover-math-GR2-fail--1-less
+On math-100, clover violates R1
+On math-103, clover violates R1
+On math-104, clover violates R1
+
+GROUP: R1-clover-math-GR2-fail--2-less
+On math-101, clover violates R1
+
+GROUP: R1-clover-math-GR2-fail--6-less
+On math-102, clover violates R1
+
+GROUP: R1-ekstazi-lang-GR2-fail--2-less
+On lang-47, ekstazi violates R1
+
+GROUP: R1-starts-lang-GR2-fail--1-less
+On lang-48, starts violates R1
+
+GROUP: R2-clover-lang-GR6-run-0
+On lang-42, clover violates R2
+On lang-43, clover violates R2
+On lang-44, clover violates R2
+On lang-45, clover violates R2
+On lang-46, clover violates R2
+On lang-47, clover violates R2
+On lang-48, clover violates R2
+On lang-49, clover violates R2
+On lang-50, clover violates R2
+On lang-51, clover violates R2
+On lang-52, clover violates R2
+On lang-53, clover violates R2
+
+GROUP: R2-clover-math-GR6-run-0
+On math-100, clover violates R2
+On math-101, clover violates R2
+On math-102, clover violates R2
+On math-103, clover violates R2
+On math-104, clover violates R2
+
+GROUP: R3-clover-time-GR1
+On time-1, clover violates R3
+On time-2, clover violates R3
+On time-3, clover violates R3
+On time-4, clover violates R3
+On time-5, clover violates R3
+On time-6, clover violates R3
+On time-7, clover violates R3
+On time-8, clover violates R3
+On time-9, clover violates R3
+On time-10, clover violates R3
+On time-11, clover violates R3
+On time-12, clover violates R3
+On time-13, clover violates R3
+On time-14, clover violates R3
+On time-15, clover violates R3
+On time-16, clover violates R3
+On time-17, clover violates R3
+On time-18, clover violates R3
+On time-19, clover violates R3
+On time-20, clover violates R3
+On time-21, clover violates R3
+On time-22, clover violates R3
+On time-23, clover violates R3
+On time-24, clover violates R3
+On time-25, clover violates R3
+On time-26, clover violates R3
+
+GROUP: R3-clover-math-GR1
+On math-64, clover violates R3
+
+GROUP: R3-starts-time-GR1
+On time-1, starts violates R3
+On time-2, starts violates R3
+On time-3, starts violates R3
+On time-4, starts violates R3
+On time-5, starts violates R3
+On time-6, starts violates R3
+On time-7, starts violates R3
+On time-8, starts violates R3
+On time-9, starts violates R3
+On time-10, starts violates R3
+On time-11, starts violates R3
+On time-12, starts violates R3
+On time-13, starts violates R3
+On time-14, starts violates R3
+On time-15, starts violates R3
+On time-16, starts violates R3
+On time-17, starts violates R3
+On time-18, starts violates R3
+On time-19, starts violates R3
+On time-20, starts violates R3
+On time-21, starts violates R3
+On time-22, starts violates R3
+On time-23, starts violates R3
+On time-24, starts violates R3
+On time-25, starts violates R3
+On time-26, starts violates R3
+
+GROUP: R5-ekstazi-lang-GR5-run-80-100%
+On lang-37, ekstazi violates R5
+On lang-38, ekstazi violates R5
+On lang-39, ekstazi violates R5
+On lang-40, ekstazi violates R5
+On lang-41, ekstazi violates R5
+
+GROUP: R5-ekstazi-time-GR5-run-0-20%
+On time-1, ekstazi violates R5
+On time-2, ekstazi violates R5
+On time-3, ekstazi violates R5
+On time-4, ekstazi violates R5
+On time-5, ekstazi violates R5
+On time-6, ekstazi violates R5
+On time-7, ekstazi violates R5
+On time-8, ekstazi violates R5
+On time-9, ekstazi violates R5
+On time-10, ekstazi violates R5
+On time-11, ekstazi violates R5
+On time-12, ekstazi violates R5
+On time-13, ekstazi violates R5
+On time-14, ekstazi violates R5
+On time-15, ekstazi violates R5
+On time-16, ekstazi violates R5
+On time-17, ekstazi violates R5
+On time-18, ekstazi violates R5
+On time-19, ekstazi violates R5
+On time-20, ekstazi violates R5
+On time-21, ekstazi violates R5
+On time-22, ekstazi violates R5
+On time-23, ekstazi violates R5
+On time-24, ekstazi violates R5
+On time-25, ekstazi violates R5
+On time-26, ekstazi violates R5
+
+GROUP: R5-ekstazi-math-GR5-run-0-20%
+On math-5, ekstazi violates R5
+On math-6, ekstazi violates R5
+On math-7, ekstazi violates R5
+On math-8, ekstazi violates R5
+On math-9, ekstazi violates R5
+On math-10, ekstazi violates R5
+On math-11, ekstazi violates R5
+On math-12, ekstazi violates R5
+On math-13, ekstazi violates R5
+On math-14, ekstazi violates R5
+On math-15, ekstazi violates R5
+On math-16, ekstazi violates R5
+On math-17, ekstazi violates R5
+On math-18, ekstazi violates R5
+On math-19, ekstazi violates R5
+On math-20, ekstazi violates R5
+On math-21, ekstazi violates R5
+On math-22, ekstazi violates R5
+On math-23, ekstazi violates R5
+On math-24, ekstazi violates R5
+On math-25, ekstazi violates R5
+On math-26, ekstazi violates R5
+On math-27, ekstazi violates R5
+On math-28, ekstazi violates R5
+On math-29, ekstazi violates R5
+On math-30, ekstazi violates R5
+On math-31, ekstazi violates R5
+On math-32, ekstazi violates R5
+On math-33, ekstazi violates R5
+On math-34, ekstazi violates R5
+On math-35, ekstazi violates R5
+On math-36, ekstazi violates R5
+On math-37, ekstazi violates R5
+On math-38, ekstazi violates R5
+On math-39, ekstazi violates R5
+On math-40, ekstazi violates R5
+On math-41, ekstazi violates R5
+On math-42, ekstazi violates R5
+On math-43, ekstazi violates R5
+On math-44, ekstazi violates R5
+On math-45, ekstazi violates R5
+On math-46, ekstazi violates R5
+On math-47, ekstazi violates R5
+On math-48, ekstazi violates R5
+On math-49, ekstazi violates R5
+On math-50, ekstazi violates R5
+On math-51, ekstazi violates R5
+On math-52, ekstazi violates R5
+On math-53, ekstazi violates R5
+On math-54, ekstazi violates R5
+On math-55, ekstazi violates R5
+On math-56, ekstazi violates R5
+On math-61, ekstazi violates R5
+On math-62, ekstazi violates R5
+On math-63, ekstazi violates R5
+On math-64, ekstazi violates R5
+On math-65, ekstazi violates R5
+On math-66, ekstazi violates R5
+On math-67, ekstazi violates R5
+On math-68, ekstazi violates R5
+On math-69, ekstazi violates R5
+On math-70, ekstazi violates R5
+On math-71, ekstazi violates R5
+On math-72, ekstazi violates R5
+On math-73, ekstazi violates R5
+On math-74, ekstazi violates R5
+On math-75, ekstazi violates R5
+On math-76, ekstazi violates R5
+On math-77, ekstazi violates R5
+On math-78, ekstazi violates R5
+On math-79, ekstazi violates R5
+On math-80, ekstazi violates R5
+On math-81, ekstazi violates R5
+On math-82, ekstazi violates R5
+On math-83, ekstazi violates R5
+On math-84, ekstazi violates R5
+On math-85, ekstazi violates R5
+On math-86, ekstazi violates R5
+On math-87, ekstazi violates R5
+On math-88, ekstazi violates R5
+On math-89, ekstazi violates R5
+On math-90, ekstazi violates R5
+On math-91, ekstazi violates R5
+On math-92, ekstazi violates R5
+On math-93, ekstazi violates R5
+On math-94, ekstazi violates R5
+On math-95, ekstazi violates R5
+On math-96, ekstazi violates R5
+On math-97, ekstazi violates R5
+On math-98, ekstazi violates R5
+On math-99, ekstazi violates R5
+
+GROUP: R5-ekstazi-math-GR5-run-40-60%
+On math-57, ekstazi violates R5
+
+GROUP: R5-ekstazi-math-GR5-run-20-40%
+On math-58, ekstazi violates R5
+On math-59, ekstazi violates R5
+On math-60, ekstazi violates R5
+
+GROUP: R5-clover-time-GR1
+On time-1, clover violates R5
+On time-2, clover violates R5
+On time-3, clover violates R5
+On time-4, clover violates R5
+On time-5, clover violates R5
+On time-6, clover violates R5
+On time-7, clover violates R5
+On time-8, clover violates R5
+On time-9, clover violates R5
+On time-10, clover violates R5
+On time-11, clover violates R5
+On time-12, clover violates R5
+On time-13, clover violates R5
+On time-14, clover violates R5
+On time-15, clover violates R5
+On time-16, clover violates R5
+On time-17, clover violates R5
+On time-18, clover violates R5
+On time-19, clover violates R5
+On time-20, clover violates R5
+On time-21, clover violates R5
+On time-22, clover violates R5
+On time-23, clover violates R5
+On time-24, clover violates R5
+On time-25, clover violates R5
+On time-26, clover violates R5
+
+GROUP: R5-clover-math-GR5-run-0-20%
+On math-5, clover violates R5
+On math-6, clover violates R5
+On math-7, clover violates R5
+On math-8, clover violates R5
+On math-9, clover violates R5
+On math-10, clover violates R5
+On math-11, clover violates R5
+On math-12, clover violates R5
+On math-13, clover violates R5
+On math-14, clover violates R5
+On math-15, clover violates R5
+On math-16, clover violates R5
+On math-17, clover violates R5
+On math-18, clover violates R5
+On math-19, clover violates R5
+On math-20, clover violates R5
+On math-21, clover violates R5
+On math-22, clover violates R5
+On math-23, clover violates R5
+On math-24, clover violates R5
+On math-25, clover violates R5
+On math-26, clover violates R5
+On math-27, clover violates R5
+On math-28, clover violates R5
+On math-29, clover violates R5
+On math-30, clover violates R5
+On math-31, clover violates R5
+On math-32, clover violates R5
+On math-33, clover violates R5
+On math-34, clover violates R5
+On math-42, clover violates R5
+On math-43, clover violates R5
+On math-45, clover violates R5
+On math-47, clover violates R5
+On math-48, clover violates R5
+
+GROUP: R6-clover-lang-GR6-run-0
+On lang-42, clover violates R6
+On lang-43, clover violates R6
+On lang-44, clover violates R6
+On lang-45, clover violates R6
+On lang-46, clover violates R6
+On lang-47, clover violates R6
+On lang-48, clover violates R6
+On lang-49, clover violates R6
+On lang-50, clover violates R6
+On lang-51, clover violates R6
+On lang-52, clover violates R6
+On lang-53, clover violates R6
+
+GROUP: R6-clover-math-GR6-run-0
+On math-100, clover violates R6
+On math-101, clover violates R6
+On math-102, clover violates R6
+On math-103, clover violates R6
+On math-104, clover violates R6
+
+GROUP: R7-clover-time-GR3-fail-2-more
+On time-1, clover violates R7
+On time-2, clover violates R7
+On time-3, clover violates R7
+On time-4, clover violates R7
+On time-5, clover violates R7
+On time-6, clover violates R7
+On time-7, clover violates R7
+On time-8, clover violates R7
+On time-9, clover violates R7
+On time-10, clover violates R7
+On time-11, clover violates R7
+On time-12, clover violates R7
+On time-13, clover violates R7
+On time-14, clover violates R7
+On time-15, clover violates R7
+On time-16, clover violates R7
+On time-17, clover violates R7
+On time-18, clover violates R7
+On time-19, clover violates R7
+On time-20, clover violates R7
+On time-21, clover violates R7
+On time-22, clover violates R7
+On time-23, clover violates R7
+On time-24, clover violates R7
+On time-25, clover violates R7
+On time-26, clover violates R7
+On time-1, clover violates R7
+On time-2, clover violates R7
+On time-3, clover violates R7
+On time-4, clover violates R7
+On time-5, clover violates R7
+On time-6, clover violates R7
+On time-7, clover violates R7
+On time-8, clover violates R7
+On time-9, clover violates R7
+On time-10, clover violates R7
+On time-11, clover violates R7
+On time-12, clover violates R7
+On time-13, clover violates R7
+On time-14, clover violates R7
+On time-15, clover violates R7
+On time-16, clover violates R7
+On time-17, clover violates R7
+On time-18, clover violates R7
+On time-19, clover violates R7
+On time-20, clover violates R7
+On time-21, clover violates R7
+On time-22, clover violates R7
+On time-23, clover violates R7
+On time-24, clover violates R7
+On time-25, clover violates R7
+On time-26, clover violates R7
+
+GROUP: R7-clover-math-GR3-fail-0-more
+On math-64, clover violates R7
+
+GROUP: R7-ekstazi-math-GR3-fail-0-more
+On math-44, ekstazi violates R7
+
+GROUP: R7-starts-lang-GR3-fail-1-more
+On lang-46, starts violates R7

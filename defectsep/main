@@ -1,0 +1,39 @@
+#!/bin/bash
+
+mode=${1:-"demo"}
+
+readonly VERION=1.2
+DEMO_EXAMPLES=( "time-1" "lang-37" "lang-42" "lang-47" "math-100" )
+
+printf "DefectsEP Components ${VERION}\n"
+
+printf "Checking for required software ...\n"
+command -v python3 > /dev/null 2>&1 || { echo >&2 "python3 is required"; exit 1; }
+
+printf "Obtaining and building Defects4j ...\n"
+if [ ! -d defects4j ]; then
+        git clone https://github.com/rjust/defects4j > /dev/null
+        (
+                cd defects4j
+                git checkout fcf6b9bb > /dev/null
+        )
+fi
+(
+        cd defects4j
+        ./init.sh &> /dev/null
+)
+export PATH=$(pwd)/defects4j/framework/bin/:$PATH
+
+printf "Running RTSCheck (DefectsEP) for all tools on all (demo) examples ...\n"
+if [[ ${mode} == "all" ]]; then
+        python3 run_defectsep.py --run
+        python3 run_defectsep.py --same-version-twice
+else
+        for (( i=0; i<${#DEMO_EXAMPLES[@]}; i++ )); do
+                ex=${DEMO_EXAMPLES[$i]}
+                python3 run_defectsep.py --run-one "${ex}"
+                python3 run_defectsep.py --same-version-twice-one "${ex}"
+        done
+fi
+python3 gen_tables.py --all
+python3 check_rules.py --all
