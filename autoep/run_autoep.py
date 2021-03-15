@@ -804,7 +804,7 @@ def genEvolvingProgramsForOneConfig(gen, evo, jdolly_gen_dir=GEN_PROGRAMS_DIR):
           str(datetime.datetime.now()))
 
 def genEvolvingProgramsForAllConfigs(gens=GENERATION_CONSTRAINTS, evos=EVOLUTIONS, \
-                                     genprograms_dir=GEN_PROGRAMS_DIR):
+                                     gen_programs_dir=GEN_PROGRAMS_DIR):
     if os.path.isdir(gen_programs_dir):
         shutil.rmtree(gen_programs_dir)
     sub.run('mkdir -p ' + gen_programs_dir, shell=True)
