@@ -1,4 +1,5 @@
-# rtscheck
+# RTSCheck
+
 RTSCheck: A framework for testing regression test selection tools
 
 If you have used RTSCheck in a research project, please cite
