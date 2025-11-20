@@ -174,7 +174,7 @@ def compileAllPrograms(root_list):
     for root in root_list:
         os.chdir(root + '/0')
         # Log compilation at the same time
-        sp = sub.run('mvn compile', shell=True, stdout=open(os.devnull, 'w'), stderr=sub.STDOUT)
+        sp = sub.run('mvn compile test-compile', shell=True, stdout=open(os.devnull, 'w'), stderr=sub.STDOUT)
         if sp.returncode == 0:
             os.chdir(cwd)
             valid_root_list.append(root)
@@ -856,7 +856,7 @@ def runOneToolOnOneExample(tool, gen, evo, example, gen_programs_dir=GEN_PROGRAM
         os.chdir(v0_prog_dir)
         start_time = int(round(time.time() * 1000))
         print ('[AutoEP]: Running RetestAll on V0')
-        sub.run('mvn test -fn -DargLine=\"-javaagent:' + agent_path + '\"', shell=True, \
+        sub.run('mvn clean test -fn -DargLine=\"-javaagent:' + agent_path + '\"', shell=True, \
                 stdout=open(v0_logs_dir + '/notool.log', 'w'), stderr=sub.STDOUT)
         end_time = int(round(time.time() * 1000))
         prependAndAppendTimeInLogFile(tool, start_time, end_time, \
